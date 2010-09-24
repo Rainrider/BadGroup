@@ -1,3 +1,9 @@
+local redColor = "|cffff0000"
+local greenColor = "|cff00ff00"
+local yellowColor = "|cffffff00"
+
+local coloredAddonName = "|cff0099CCBadGroup:|r "
+
 local defaults = {
 	["socialOutput"] = true,
 	["debug"] = false,
@@ -56,8 +62,6 @@ local spellList = {
 local badAuras = {
 	["DEATHKNIGHT"] = 48263, -- frost presence
 	["PALADIN"] = 25780, -- righteous fury
-	["WARLOCK"] = 47893, -- fel armor, just for debug
-	["HUNTER"] = 61847, -- aspect of the dragonhawk, just for debug
 }
 
 local BadGroup = CreateFrame("Frame", "BadGroup", UIParent)
@@ -80,7 +84,6 @@ function BadGroup:ADDON_LOADED(event, name)
 end
 
 function BadGroup:PLAYER_ENTERING_WORLD()
-	self:Debug("World entered.")
 	self:EventHandler()
 end
 
@@ -90,12 +93,14 @@ function BadGroup:EventHandler()
 	if locType ~= "raid" or locType ~= "party" then
 		if (self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
 			self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+			self:Debug("Idle ... zzZZzz")
 		end
 	end
 	
 	if locType == "raid" or locType == "party" then
 		if (not self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
 			self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+			self:Debug("Now repoting!")
 		end
 	end
 end
@@ -103,23 +108,24 @@ end
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
 	local tstamp, subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname, spellschool, b_or_d = select(1, ...)
 	
-	if (subtype == "SPELL_CAST_SUCESS" and not isOutsider(srcFlags) and not isTank(srcName) and checkSpellid(spellid)) then
+	if (subtype == "SPELL_CAST_SUCESS" and not self:isOutsider(srcFlags) and not self:isTank(srcName) and self:checkSpellid(spellid)) then
 		if (dstName) then
-			if (isTank(UnitName(dstName.."-target"))) then	-- TODO: is this fast enough or is "dstName-target" already the taunter?
-				return chatOutput(srcName, srcGUID, dstName, spellid)
+			self:Debug("Someone taunted. Checking target...")
+			if (self:isTank(UnitName(dstName .. "-target"))) then	-- TODO: is this fast enough or is "dstName-target" already the taunter?
+				return self:chatOutput(srcName, srcGUID, dstName, spellid)
 			end
 		end
 		-- we have an AE taunt
-		return chatOutput(srcName, srcGUID, nil, spellid)
+		return self:chatOutput(srcName, srcGUID, nil, spellid)
 	end
 end
 
-function isOutsider(srcFlags)
+function BadGroup:isOutsider(srcFlags)
 	local flags = bit.band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MASK)
 	return flags >= COMBATLOG_OBJECT_AFFILIATION_OUTSIDER
 end
 
-function isTank(srcName)
+function BadGroup:isTank(srcName)
 	if (not UnitIsPlayer(srcName) or UnitHasVehicleUI(srcName)) then
 		return false
 	end
@@ -136,7 +142,7 @@ function isTank(srcName)
 	
 end
 
-function checkSpellid(spellid)
+function BadGroup:checkSpellid(spellid)
 	for i, v in ipairs(spellList) do
 		if v == spellid then
 			return true
@@ -144,7 +150,7 @@ function checkSpellid(spellid)
 	end
 end
 
-function getPetOwner(srcGUID)
+function BadGroup:getPetOwner(srcGUID)
 	local pet
 	local numMembers
 	local groupType
@@ -159,9 +165,9 @@ function getPetOwner(srcGUID)
 	
 	if (numMembers and groupType) then
 		for i = 1, numMembers do
-			pet = UnitGUID(groupType.."pet"..i)
+			pet = UnitGUID(groupType .. "pet" .. i)
 			if (pet and pet == srcGUID) then
-				return UnitName(groupType..i) -- returns the owner
+				return UnitName(groupType .. i)
 			end
 		end
 	end
@@ -172,21 +178,22 @@ function getPetOwner(srcGUID)
 	end
 end
 
-function getClassColoredName(srcName)
+function BadGroup:getClassColoredName(srcName)
 	local _, playerClass = UnitClass(srcName)
 	local classColor = RAID_CLASS_COLORS[playerClass]
-	return string.format("|cff%02x%02x%02x%s", classColor.r * 255, classColor.g * 255, classColor.b * 255, srcName)
+	return string.format("|cff%02x%02x%02x%s|r", classColor.r * 255, classColor.g * 255, classColor.b * 255, srcName)
 end
 
 -- NOTES: GetRaidTargetIndex works only with player names. else it always returns 1
-function getRaidIcon(name, social)
+-- TODO: stolen this from crybaby, still have to understand why my version didn't work
+function BadGroup:getRaidIcon(name, social)
 	local index = GetRaidTargetIndex(name)
 	local format = _G.string.format
 	local iconlist = _G.ICON_LIST
 	local iconformat = "%s16|t " -- 16 is the size of the icon
 	
 	if index and social then
-		return "{rt"..index.."} "
+		return "{rt" .. index .. "} "
 	elseif index and not social then
 		return iconformat:format(iconlist[index])
 	else
@@ -196,19 +203,21 @@ end
 
 -- TODO: player hyperlink
 -- TODO: mob hyperlink
-function chatOutput(srcName, srcGUID, dstName, spellid)
-	local message = GetSpellLink(spellid).." used by "..getRaidIcon(srcName, true)..srcName
-	local prvtMessage = GetSpellLink(spellid).." used by "..getRaidIcon(srcName, false)..getClassColoredName(srcName).."|r"
-	local owner = getPetOwner(srcGUID)
+function BadGroup:chatOutput(srcName, srcGUID, dstName, spellid)
+	self:Debug("Preparing chat output...")
+	
+	local message = GetSpellLink(spellid) .. " used by " .. self:getRaidIcon(srcName, true) .. srcName
+	local prvtMessage = GetSpellLink(spellid) .. " used by " .. self:getRaidIcon(srcName, false) .. self:getClassColoredName(srcName)
+	local owner = self:getPetOwner(srcGUID)
 
 	if (owner) then
-		message = GetSpellLink(spellid).." used by "..owner.."'s pet "..srcName
-		prvtMessage = GetSpellLink(spellid).." used by "..getClassColoredName(owner).."'s|r pet |cff00ff00"..srcName.."|r"
+		message = GetSpellLink(spellid) .. " used by " .. owner .. "'s pet " .. srcName
+		prvtMessage = GetSpellLink(spellid) .. " used by " .. self:getClassColoredName(owner) .. "'s pet " .. greenColor .. srcName .. "|r"
 	end
 
 	if (dstName) then
-		message = message.." on "..getRaidIcon(srcName.."-target", true)..dstName
-		prvtMessage = prvtMessage.." on "..getRaidIcon(srcName.."-target", false).."|cffff0000"..dstName.."|r"
+		message = message .. " on " .. self:getRaidIcon(srcName .. "-target", true) .. dstName
+		prvtMessage = prvtMessage .. " on " .. self:getRaidIcon(srcName .. "-target", false) .. redColor .. dstName .. "|r"
 	end
 
 	if(GetNumRaidMembers() > 0 and BadGroupSV.socialOutput) then
@@ -216,11 +225,13 @@ function chatOutput(srcName, srcGUID, dstName, spellid)
 	elseif (GetNumPartyMembers() > 0 and BadGroupSV.socialOutput) then
 		SendChatMessage(message, "PARTY")
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r "..prvtMessage)
+		self:Print(prvtMessage)
 	end
 end
 
-function checkAggroAuras()	
+function BadGroup:checkAggroAuras()
+	self:Debug("Auras check...")
+
 	local numMembers
 	local groupType
 
@@ -234,16 +245,16 @@ function checkAggroAuras()
 
 	if (numMembers and groupType) then
 		for i = 1, numMembers do
-			local _, playerClass = UnitClass(groupType..i)
+			local _, playerClass = UnitClass(groupType .. i)
 			if (playerClass == "PALADIN" or playerClass == "DEATHKNIGHT") then	
 				for k, auraId in pairs(badAuras) do
 					local auraName = GetSpellInfo(auraId)
-					if (select(11, UnitAura(groupType..i, auraName)) == badAuras[playerClass]) then
-						local playerName = UnitName(groupType..i)
-						if (BadGroupSV.socialOutput and not isTank(playerName)) then
-							SendChatMessage(getRaidIcon(playerName, true)..playerName.." has "..GetSpellLink(auraId).." on.", groupType == "raid" and "RAID" or "PARTY")
-						elseif (not isTank(playerName)) then
-							DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r "..getRaidIcon(playerName, false)..getClassColoredName(playerName).."|r has "..GetSpellLink(auraId).." on.")
+					if (select(11, UnitAura(groupType .. i, auraName)) == badAuras[playerClass]) then
+						local playerName = UnitName(groupType .. i)
+						if (BadGroupSV.socialOutput and not self:isTank(playerName)) then
+							SendChatMessage(self:getRaidIcon(playerName, true) .. playerName .. " has " .. GetSpellLink(auraId) .. " on.", groupType == "raid" and "RAID" or "PARTY")
+						elseif (not self:isTank(playerName)) then
+							self:Print(self:getRaidIcon(playerName, false) .. self:getClassColoredName(playerName) .. " has " .. GetSpellLink(auraId) .. " on.")
 						end
 					end
 				end
@@ -253,79 +264,84 @@ function checkAggroAuras()
 	
 	local _, playerClass = UnitClass("player")
 	
-	if (playerClass == "WARLOCK" or playerClass == "HUNTER" or playerClass == "DEATHKNIGHT" or playerClass == "PALADIN") then
+	if (playerClass == "DEATHKNIGHT" or playerClass == "PALADIN") then
 		for k, auraId in pairs(badAuras) do
 			local auraName = GetSpellInfo(auraId)
 			if (select(11, UnitAura("player", auraName)) == badAuras[playerClass]) then
 				local playerName = UnitName("player")
-				if (BadGroupSV.socialOutput and groupType and not isTank(playerName)) then
-					SendChatMessage(getRaidIcon(playerName, true)..playerName.." has "..GetSpellLink(auraId).." on.", groupType == "raid" and "RAID" or "PARTY")
-				elseif (not isTank(playerName)) then
-					DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r "..getRaidIcon(playerName, false)..getClassColoredName(playerName).."|r has "..GetSpellLink(auraId).." on.")
+				if (BadGroupSV.socialOutput and groupType and not self:isTank(playerName)) then
+					SendChatMessage(self:getRaidIcon(playerName, true) .. playerName .. " has " .. GetSpellLink(auraId) .. " on.", groupType == "raid" and "RAID" or "PARTY")
+				elseif (not self:isTank(playerName)) then
+					self:Print(self:getRaidIcon(playerName, false) .. self:getClassColoredName(playerName) .. " has " .. GetSpellLink(auraId) .. " on.")
 				end
 			end
 		end
 	end
 end
-
-function addTank(tankName)
-	BadGroup:Debug("Tank to add: "..tostring(tankName))
+-- TODO: check if tank to add already there
+function BadGroup:addTank(tankName)
+	self:Debug("Tank to add: " .. tostring(tankName))
 	
 	if (tankName == UnitName("player") or tankName == UnitName("pet") or UnitPlayerOrPetInParty(tankName) == 1 or UnitPlayerOrPetInRaid(tankName) == 1) then
 		table.insert(BadGroupSV.customTanks, tankName)
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r Added tank "..getClassColoredName(tankName).."|r")
+		self:Print("Added tank " .. getClassColoredName(tankName))
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r You have to target a group member first.")
+		self:Print("You have to target a group member first.")
 	end
 end
 
-function removeTank(tankName)
+function BadGroup:removeTank(tankName)
 	for i, name in ipairs(BadGroupSV.customTanks) do
 		if (tankName == name) then
 			table.remove(BadGroupSV.customTanks, i)
-			DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup:|r Removed "..getClassColoredName(tankName).."|r from the list.")
-			return
+			self:Print("Removed " .. getClassColoredName(tankName) .. " from the list.")
+			-- return -- TODO: don't return cos addTank() is not good enough
 		end
 	end
 end
 
-function wipeTanks()
+function BadGroup:wipeTanks()
 	BadGroupSV.customTanks = {}
+	self:Print("All custom tanks removed.")
 end
 
 function BadGroup:Debug(...)
 	if (BadGroupSV.debug) then
-		str = tostring(...)
-		print("|cffffff00BadGroup debug:|r "..str)
+		print(coloredAddonName .. redColor .. "debug:|r ", ...)
 	end
+end
+
+function BadGroup:Print(...)
+	local str = tostring(...)
+	DEFAULT_CHAT_FRAME:AddMessage(coloredAddonName .. str)
 end
 
 function BadGroup.Command(str, editbox)
 	if (str == "social") then
 		BadGroupSV.socialOutput = true
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup: |r".."|cff00ffffOutput set to \"social\".|r")
+		BadGroup:Print("Output set to " .. yellowColor .. "social|r.")
 	elseif (str == "private") then
 		BadGroupSV.socialOutput = false
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup: |r".."|cff00ffffOutput set to \"private\".|r")
+		BadGroup:Print("Output set to " .. yellowColor .. "private|r.")
 	elseif (str == "debug" and BadGroupSV.debug) then
 		BadGroupSV.debug = false
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup: |r".."|cff00ffffStopped debugging.|r")
+		BadGroup:Print(greenColor .. "Stopped debugging|r.")
 	elseif (str == "debug" and not BadGroupSV.debug) then
 		BadGroupSV.debug = true
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup: |r".."|cff00ffffStarted debugging.|r")
-	elseif (str == "status") then
+		BadGroup:Print(redColor .. "Started debugging|r.")
+	elseif (str == "status") then -- TODO: better output
 		for k, v in pairs(BadGroupSV) do
-			DEFAULT_CHAT_FRAME:AddMessage(k..": "..tostring(v))
+			print(k .. ": " .. tostring(v))
 		end
 	elseif (str == "add") then
-		addTank(UnitName("target"))
+		BadGroup:addTank(UnitName("target"))
 	elseif (str == "del") then
-		removeTank(UnitName("target"))
+		BadGroup:removeTank(UnitName("target"))
 	elseif (str == "wipe") then
-		wipeTanks()
+		BadGroup:wipeTanks()
 	elseif (str == "auras") then
-		checkAggroAuras()
+		BadGroup:checkAggroAuras()
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cffffff00BadGroup: |r".."|cff00ffffUnknown command: |r"..str)
+		BadGroup:Print(redColor .. "Unknown command:|r " .. str)
 	end
 end
