@@ -1,0 +1,20 @@
+.: Description :.
+	A simple addon whitch tells on party or raid members taunting creatures away from a tank.
+
+.: Features :.
+	- only active in dungeons
+	- Detects a tank through LFG roles, maintank assignment in raids or through a custom tank list.
+	- Custom tank list preserves through sessions
+	- Tells on non-tank players having an aggro aura (Righteous Fury, Frost Presence)
+	- Tells on pets using Growl, Anguish, Torment or Suffering and lists them along with their owner
+	- private or social (party/raid) chat output
+
+.: Commands :.
+	/badgroup <command> or /bgrp <command>
+	- add: adds your current target to the custom tank list
+	- del: deletes your current target from the custom tank list
+	- wipe: wipes the custom tank list
+	- auras: reports non-tanks having aggro auras
+	- social: sets chat output to party/raid (based on your group type)
+	- private: outputs only to you
+	- status: outputs the current state of the saved variables (ugly)

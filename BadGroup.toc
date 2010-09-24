@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: BadGroup
+## Author: Rainrider
+## Notes: Helps tanks with bad groups
+## SavedVariablesPerCharacter: BadGroupSV
+
+BadGroup.lua
