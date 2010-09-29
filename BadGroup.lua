@@ -1,3 +1,5 @@
+local bug = true
+
 local redColor = "|cffff0000"
 local greenColor = "|cff00ff00"
 local yellowColor = "|cffffff00"
@@ -88,66 +90,86 @@ function BadGroup:PLAYER_ENTERING_WORLD()
 end
 
 function BadGroup:EventHandler()
-	local _, locType = GetInstanceInfo()
+	if (not bug) then
+		local _, locType = GetInstanceInfo()
 
-	if locType ~= "raid" or locType ~= "party" then
-		if (self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
-			self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-			self:Debug("Idle ... zzZZzz")
+		if locType ~= "raid" or locType ~= "party" then
+			if (self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
+				self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+				self:Debug("Idle ... zzZZzz")
+			end
 		end
-	end
 	
-	if locType == "raid" or locType == "party" then
-		if (not self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
-			self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-			self:Debug("Now repoting!")
+		if locType == "raid" or locType == "party" then
+			if (not self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
+				self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+				self:Debug("Now repoting!")
+			end
 		end
+	else
+		self:Debug("Bug search modus. Combat log always registered.")
+		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 	end
 end
 
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
 	local tstamp, subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname, spellschool, b_or_d = select(1, ...)
-	
-	if (subtype == "SPELL_CAST_SUCESS" and not self:isOutsider(srcFlags) and not self:isTank(srcName) and self:checkSpellid(spellid)) then
-		if (dstName) then
-			self:Debug("Someone taunted. Checking target...")
-			if (self:isTank(UnitName(dstName .. "-target"))) then	-- TODO: is this fast enough or is "dstName-target" already the taunter?
+	--self:Debug(tostring(srcName), " ", subtype, " ", GetSpellLink(spellid))
+	if (subtype == "SPELL_CAST_SUCCESS" and not self:isOutsider(srcFlags) and not self:isTank(srcName) and self:checkSpellid(spellid)) then
+		--[[if (dstName) then
+		
+			-- This would only work with pure unitIDs
+			wasTanking = UnitName(srcName .. "-targettarget")
+			self:Debug(wasTanking, " lost his target")
+			if (self:isTank(wasTanking)) then	-- TODO: is this fast enough or is "dstName-target" already the taunter?
+				self:Debug("Taunted away from the tank")
 				return self:chatOutput(srcName, srcGUID, dstName, spellid)
 			end
+			
 		end
+		--]]
 		-- we have an AE taunt
-		return self:chatOutput(srcName, srcGUID, nil, spellid)
+		return self:chatOutput(srcName, srcGUID, dstName, spellid)
 	end
 end
 
 function BadGroup:isOutsider(srcFlags)
-	local flags = bit.band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MASK)
-	return flags >= COMBATLOG_OBJECT_AFFILIATION_OUTSIDER
+	return bit.band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MASK) >= COMBATLOG_OBJECT_AFFILIATION_OUTSIDER
 end
 
 function BadGroup:isTank(srcName)
+	local start = GetTime()
+	for i, tankName in ipairs(BadGroupSV.customTanks) do
+		if (srcName == tankName) then
+			--self:Debug("Unit is custom tank")
+			self:Debug("isTank: ", GetTime() - start)
+			return true
+		end
+	end
+
 	if (not UnitIsPlayer(srcName) or UnitHasVehicleUI(srcName)) then
+		--self:Debug("Unit is pet or vehicle")
+		self:Debug("isTank: ", GetTime() - start)
 		return false
 	end
 	
-	for i, tankName in ipairs(BadGroupSV.customTanks) do
-		if (srcName == tankName) then
-			return true
-		end
-	end
-	
 	if (UnitGroupRolesAssigned(srcName) or GetPartyAssignment("MAINTANK", srcName, exactMatch) == 1) then
+		--self:Debug("Unit LFD tank or MT")
+		self:Debug("isTank: ", GetTime() - start)
 		return true
 	end
-	
+	self:Debug("isTank no match: ", GetTime() - start)
 end
 
 function BadGroup:checkSpellid(spellid)
+	local start = GetTime()
 	for i, v in ipairs(spellList) do
 		if v == spellid then
+			self:Debug("checkSpellid match: ", GetTime() - start)
 			return true
 		end
 	end
+	self:Debug("checkSpellid no match: ", GetTime() - start)
 end
 
 function BadGroup:getPetOwner(srcGUID)
@@ -204,8 +226,7 @@ end
 -- TODO: player hyperlink
 -- TODO: mob hyperlink
 function BadGroup:chatOutput(srcName, srcGUID, dstName, spellid)
-	self:Debug("Preparing chat output...")
-	
+	local start = GetTime()
 	local message = GetSpellLink(spellid) .. " used by " .. self:getRaidIcon(srcName, true) .. srcName
 	local prvtMessage = GetSpellLink(spellid) .. " used by " .. self:getRaidIcon(srcName, false) .. self:getClassColoredName(srcName)
 	local owner = self:getPetOwner(srcGUID)
@@ -227,6 +248,7 @@ function BadGroup:chatOutput(srcName, srcGUID, dstName, spellid)
 	else
 		self:Print(prvtMessage)
 	end
+	self:Debug("chatoutput: ", GetTime() - start)
 end
 
 function BadGroup:checkAggroAuras()
@@ -280,11 +302,9 @@ function BadGroup:checkAggroAuras()
 end
 -- TODO: check if tank to add already there
 function BadGroup:addTank(tankName)
-	self:Debug("Tank to add: " .. tostring(tankName))
-	
 	if (tankName == UnitName("player") or tankName == UnitName("pet") or UnitPlayerOrPetInParty(tankName) == 1 or UnitPlayerOrPetInRaid(tankName) == 1) then
 		table.insert(BadGroupSV.customTanks, tankName)
-		self:Print("Added tank " .. getClassColoredName(tankName))
+		self:Print("Added tank " .. self:getClassColoredName(tankName))
 	else
 		self:Print("You have to target a group member first.")
 	end
@@ -294,8 +314,8 @@ function BadGroup:removeTank(tankName)
 	for i, name in ipairs(BadGroupSV.customTanks) do
 		if (tankName == name) then
 			table.remove(BadGroupSV.customTanks, i)
-			self:Print("Removed " .. getClassColoredName(tankName) .. " from the list.")
-			-- return -- TODO: don't return cos addTank() is not good enough
+			self:Print("Removed " .. self:getClassColoredName(tankName) .. " from the list.")
+			-- return -- TODO: don't return cos we may have the same tank set many times
 		end
 	end
 end
@@ -306,7 +326,7 @@ function BadGroup:wipeTanks()
 end
 
 function BadGroup:Debug(...)
-	if (BadGroupSV.debug) then
+	if (BadGroupSV.debug or debugTest) then
 		print(coloredAddonName .. redColor .. "debug:|r ", ...)
 	end
 end
@@ -339,6 +359,12 @@ function BadGroup.Command(str, editbox)
 		BadGroup:removeTank(UnitName("target"))
 	elseif (str == "wipe") then
 		BadGroup:wipeTanks()
+	elseif (str == "tanks") then
+		if (BadGroupSV.customTanks) then
+			for i, name in ipairs(BadGroupSV.customTanks) do
+				BadGroup:Print("Tank " .. i .. ": " .. name)
+			end
+		end
 	elseif (str == "auras") then
 		BadGroup:checkAggroAuras()
 	else
