@@ -120,18 +120,15 @@ end
 function BadGroup:isTank(srcName)
 	for i, tankName in ipairs(BadGroupSV.customTanks) do
 		if (srcName == tankName) then
-			self:Debug("isTank custom: ", GetTime() - start)
 			return true
 		end
 	end
 
 	if (not UnitIsPlayer(srcName) or UnitHasVehicleUI(srcName)) then
-		self:Debug("isTank pet: ", GetTime() - start)
 		return false
 	end
 	
 	if (UnitGroupRolesAssigned(srcName) or GetPartyAssignment("MAINTANK", srcName, exactMatch) == 1) then
-		self:Debug("isTank LFD: ", GetTime() - start)
 		return true
 	end
 end
