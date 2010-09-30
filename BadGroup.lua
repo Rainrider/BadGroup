@@ -1,5 +1,3 @@
-local bug = true
-
 local redColor = "|cffff0000"
 local greenColor = "|cff00ff00"
 local yellowColor = "|cffffff00"
@@ -90,45 +88,27 @@ function BadGroup:PLAYER_ENTERING_WORLD()
 end
 
 function BadGroup:EventHandler()
-	if (not bug) then
-		local _, locType = GetInstanceInfo()
+	local _, locType = GetInstanceInfo()
 
-		if locType ~= "raid" or locType ~= "party" then
-			if (self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
-				self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-				self:Debug("Idle ... zzZZzz")
-			end
+	if locType ~= "raid" or locType ~= "party" then
+		if (self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
+			self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+			self:Debug("Idle ... zzZZzz")
 		end
+	end
 	
-		if locType == "raid" or locType == "party" then
-			if (not self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
-				self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-				self:Debug("Now repoting!")
-			end
+	if locType == "raid" or locType == "party" then
+		if (not self:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED")) then
+			self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+			self:Debug("Now repoting!")
 		end
-	else
-		self:Debug("Bug search modus. Combat log always registered.")
-		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 	end
 end
 
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
-	local tstamp, subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname, spellschool, b_or_d = select(1, ...)
-	--self:Debug(tostring(srcName), " ", subtype, " ", GetSpellLink(spellid))
+	local subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname = select(2, ...)
+	
 	if (subtype == "SPELL_CAST_SUCCESS" and not self:isOutsider(srcFlags) and not self:isTank(srcName) and self:checkSpellid(spellid)) then
-		--[[if (dstName) then
-		
-			-- This would only work with pure unitIDs
-			wasTanking = UnitName(srcName .. "-targettarget")
-			self:Debug(wasTanking, " lost his target")
-			if (self:isTank(wasTanking)) then	-- TODO: is this fast enough or is "dstName-target" already the taunter?
-				self:Debug("Taunted away from the tank")
-				return self:chatOutput(srcName, srcGUID, dstName, spellid)
-			end
-			
-		end
-		--]]
-		-- we have an AE taunt
 		return self:chatOutput(srcName, srcGUID, dstName, spellid)
 	end
 end
@@ -138,38 +118,30 @@ function BadGroup:isOutsider(srcFlags)
 end
 
 function BadGroup:isTank(srcName)
-	local start = GetTime()
 	for i, tankName in ipairs(BadGroupSV.customTanks) do
 		if (srcName == tankName) then
-			--self:Debug("Unit is custom tank")
-			self:Debug("isTank: ", GetTime() - start)
+			self:Debug("isTank custom: ", GetTime() - start)
 			return true
 		end
 	end
 
 	if (not UnitIsPlayer(srcName) or UnitHasVehicleUI(srcName)) then
-		--self:Debug("Unit is pet or vehicle")
-		self:Debug("isTank: ", GetTime() - start)
+		self:Debug("isTank pet: ", GetTime() - start)
 		return false
 	end
 	
 	if (UnitGroupRolesAssigned(srcName) or GetPartyAssignment("MAINTANK", srcName, exactMatch) == 1) then
-		--self:Debug("Unit LFD tank or MT")
-		self:Debug("isTank: ", GetTime() - start)
+		self:Debug("isTank LFD: ", GetTime() - start)
 		return true
 	end
-	self:Debug("isTank no match: ", GetTime() - start)
 end
 
 function BadGroup:checkSpellid(spellid)
-	local start = GetTime()
 	for i, v in ipairs(spellList) do
 		if v == spellid then
-			self:Debug("checkSpellid match: ", GetTime() - start)
 			return true
 		end
 	end
-	self:Debug("checkSpellid no match: ", GetTime() - start)
 end
 
 function BadGroup:getPetOwner(srcGUID)
@@ -315,7 +287,6 @@ function BadGroup:removeTank(tankName)
 		if (tankName == name) then
 			table.remove(BadGroupSV.customTanks, i)
 			self:Print("Removed " .. self:getClassColoredName(tankName) .. " from the list.")
-			-- return -- TODO: don't return cos we may have the same tank set many times
 		end
 	end
 end
