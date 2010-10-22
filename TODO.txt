@@ -1,4 +1,0 @@
-- chatOutput only when they taunt something targeting the tank
-
-
-
