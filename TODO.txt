@@ -1,10 +1,4 @@
-Register "ZONE_CHANGED_NEW_AREA"
-upon "ZONE_CHANGED_NEW_AREA" check for instance
-if instance register "COMBAT_LOG_EVENT_UNFILTERED" and do stuff
-upon "ZONE_CHANGED_NEW_AREA" check for instance
-if not instance unregister "COMBAT_LOG_EVENT_UNFILTERED" if it was previously registered
+- chatOutput only when they taunt something targeting the tank
 
-worked out by adding PLAYER_ENTERING_WORLD too
 
-chatOutput only when they taunt something targeting the tank
-possibility to set a custom tank
+

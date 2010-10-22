@@ -27,40 +27,15 @@ local spellList = {
 	-- hunter
 	20736, -- distracting shot
 	-- hunter's pet
-	2649, -- growl 1
-	14916, -- growl 2
-	14917, -- growl 3
-	14918, -- growl 4
-	14919, -- growl 5
-	14920, -- growl 6
-	14921, -- growl 7
-	27047, -- growl 8
-	61676, -- growl 9
+	2649, -- growl
 	-- warlock's pets
-	33698, -- anguish 1
-	33699, -- anguish 2
-	33700, -- anguish 3
-	47993, -- anguish 4
-	3716, -- torment 1
-	7809, -- torment 2
-	7810, -- torment 3
-	7811, -- torment 4
-	11774, -- torment 5
-	11775, -- torment 6
-	27270, -- torment 7
-	47984, -- torment 8
-	17735, -- suffering 1
-	17750, -- suffering 2
-	17751, -- suffering 3
-	17752, -- suffering 4
-	27271, -- suffering 5
-	33701, -- suffering 6
-	47989, -- suffering 7
-	47990, -- suffering 8
+	33698, -- anguish 
+	3716, -- torment
+	17735, -- suffering
 }
 
 local badAuras = {
-	["DEATHKNIGHT"] = 48263, -- frost presence
+	["DEATHKNIGHT"] = 48263, -- blood presence
 	["PALADIN"] = 25780, -- righteous fury
 	["WARRIOR"] = 71, -- defensive stance
 }
@@ -122,7 +97,7 @@ end
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
 	local subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname = select(2, ...)
 	
-	if (subtype == "SPELL_CAST_SUCCESS" and not self:IsOutsider(srcFlags) and not self:IsTank(srcName) and self:CheckSpellid(spellid)) then
+	if (subtype == "SPELL_CAST_SUCCESS" and not self:IsOutsider(srcFlags) and self:CheckSpellid(spellid) and not self:IsTank(srcName)) then
 		return self:ChatOutput(srcName, srcGUID, dstName, spellid)
 	end
 end
@@ -142,7 +117,7 @@ function BadGroup:IsTank(srcName)
 		return false
 	end
 	
-	if (UnitGroupRolesAssigned(srcName) or GetPartyAssignment("MAINTANK", srcName, exactMatch) == 1) then
+	if (UnitGroupRolesAssigned(srcName) == "TANK" or GetPartyAssignment("MAINTANK", srcName, exactMatch) == 1) then
 		return true
 	end
 end
