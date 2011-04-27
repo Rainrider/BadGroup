@@ -95,7 +95,7 @@ function BadGroup:EventHandler()
 end
 
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
-	local subtype, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname = select(2, ...)
+	local subtype, hideCaster, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname = select(2, ...)
 	
 	if (subtype == "SPELL_CAST_SUCCESS" and not self:IsOutsider(srcFlags) and self:CheckSpellid(spellid) and not self:IsTank(srcName)) then
 		return self:ChatOutput(srcName, srcGUID, dstName, spellid)

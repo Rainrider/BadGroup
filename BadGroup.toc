@@ -1,4 +1,4 @@
-## Interface: 40000
+## Interface: 40100
 ## Title: BadGroup
 ## Author: Rainrider
 ## Notes: Helps tanks with bad groups
