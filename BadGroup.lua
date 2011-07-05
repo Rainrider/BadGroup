@@ -12,33 +12,35 @@ local defaults = {
 
 local spellList = {
 	-- warrior
-	355, -- taunt
-	1161, -- challenging shout
-	694, -- mocking blow
+	355,	-- taunt
+	1161,	-- challenging shout
+	694,	-- mocking blow
 	-- paladin
-	31789, -- rghteous defense
-	62124, -- hand of reckoning
+	31789,	-- rghteous defense
+	62124,	-- hand of reckoning
 	-- death knight
-	49576, -- death grip
-	56222, -- dark command
+	49576,	-- death grip
+	56222,	-- dark command
 	-- druid
-	6795, -- growl
-	5209, -- challenging roar
+	6795,	-- growl
+	5209,	-- challenging roar
 	-- hunter
-	20736, -- distracting shot
+	20736,	-- distracting shot
 	-- hunter's pet
-	2649, -- growl
+	2649,	-- growl
 	-- warlock's pets
-	33698, -- anguish 
-	3716, -- torment
-	17735, -- suffering
+	33698,	-- anguish 
+	3716,	-- torment
+	17735,	-- suffering
 }
 
 local badAuras = {
-	["DEATHKNIGHT"] = 48263, -- blood presence
-	["PALADIN"] = 25780, -- righteous fury
-	["WARRIOR"] = 71, -- defensive stance
+	["DEATHKNIGHT"] = 48263,	-- blood presence
+	["PALADIN"] = 25780,		-- righteous fury
+	["WARRIOR"] = 71,			-- defensive stance
 }
+
+local partyTargets = {}
 
 local metaSV = {
 	__tostring = function(tbl)
@@ -73,10 +75,6 @@ function BadGroup:ADDON_LOADED(event, name)
 end
 
 function BadGroup:PLAYER_ENTERING_WORLD()
-	self:EventHandler()
-end
-
-function BadGroup:EventHandler()
 	local _, locType = GetInstanceInfo()
 
 	if locType ~= "raid" or locType ~= "party" then
@@ -95,7 +93,7 @@ function BadGroup:EventHandler()
 end
 
 function BadGroup:COMBAT_LOG_EVENT_UNFILTERED(event, ...)
-	local subtype, hideCaster, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellid, spellname = select(2, ...)
+	local subtype, hideCaster, srcGUID, srcName, srcFlags, srcRaidFlags, dstGUID, dstName, dstFlags, dstRaidFlags, spellid, spellname = select(2, ...)
 	
 	if (subtype == "SPELL_CAST_SUCCESS" and not self:IsOutsider(srcFlags) and self:CheckSpellid(spellid) and not self:IsTank(srcName)) then
 		return self:ChatOutput(srcName, srcGUID, dstName, spellid)
@@ -106,6 +104,7 @@ function BadGroup:IsOutsider(srcFlags)
 	return bit.band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MASK) >= COMBATLOG_OBJECT_AFFILIATION_OUTSIDER
 end
 
+-- TODO: update the tank table when group roles become available (ROLL_CHANGED_INFORM)
 function BadGroup:IsTank(srcName)
 	for i, tankName in ipairs(BadGroupSV.customTanks) do
 		if (srcName == tankName) then
@@ -165,7 +164,7 @@ function BadGroup:ClassColoredName(srcName)
 end
 
 -- NOTES: GetRaidTargetIndex works only with player names. else it always returns 1
--- TODO: stolen this from crybaby, still have to understand why my version didn't work
+-- TODO: switch this to using bit.band on src(Raid)Flags and dst(Raid)Flags as in crybaby
 function BadGroup:RaidIcon(name, social)
 	local index = GetRaidTargetIndex(name)
 	local format = _G.string.format
@@ -183,6 +182,8 @@ end
 
 -- TODO: player hyperlink
 -- TODO: mob hyperlink
+-- NOTE: hyperlinks will error on right click as they are not in the combat log
+-- |Hunit:unitGUID|hname|h
 function BadGroup:ChatOutput(srcName, srcGUID, dstName, spellid)
 	local start = GetTime()
 	local message = GetSpellLink(spellid) .. " used by " .. self:RaidIcon(srcName, true) .. srcName
@@ -209,6 +210,7 @@ function BadGroup:ChatOutput(srcName, srcGUID, dstName, spellid)
 	self:Debug("chatoutput: ", GetTime() - start)
 end
 
+-- TODO: could condense this as it contrains a lot of repeating code
 function BadGroup:CheckAuras()
 	local numMembers
 	local groupType
