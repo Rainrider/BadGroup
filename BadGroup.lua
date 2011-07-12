@@ -71,6 +71,12 @@ function BadGroup:ADDON_LOADED(event, name)
 		
 		-- register events
 		self:RegisterEvent("PLAYER_ENTERING_WORLD")
+		-- TODO: for keeping the tank list
+		-- self:RegisterEvent("PARTY_MEMBERS_CHANGED")
+		-- self:RegisterEvent("PLAYER_ROLES_ASSIGNED") -- check what this is for
+		-- self:RegisterEvent("ROLE_CHANGED_INFORM")
+		-- self:RegisterEvent("LFG_ROLE_UPDATE") -- check what this is for
+		-- self:RegisterEvent("RAID_ROSTER_UPDATE")
 	end
 end
 
@@ -104,7 +110,6 @@ function BadGroup:IsOutsider(srcFlags)
 	return bit.band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MASK) >= COMBATLOG_OBJECT_AFFILIATION_OUTSIDER
 end
 
--- TODO: update the tank table when group roles become available (ROLL_CHANGED_INFORM)
 function BadGroup:IsTank(srcName)
 	for i, tankName in ipairs(BadGroupSV.customTanks) do
 		if (srcName == tankName) then
@@ -210,59 +215,49 @@ function BadGroup:ChatOutput(srcName, srcGUID, dstName, spellid)
 	self:Debug("chatoutput: ", GetTime() - start)
 end
 
--- TODO: could condense this as it contrains a lot of repeating code
+function BadGroup:ScanAuras(unitID, groupType)
+	local _, playerClass = UnitClass(unitID)
+	local auraID = badAuras[playerClass]
+	local auraName = GetSpellInfo(auraID)
+	local playerName = UnitName(unitID)
+	
+	if (select(11, UnitAura(unitID, auraName)) == auraID) then
+		if (BadGroupSV.socialOutput and groupType and not self:IsTank(playerName)) then
+			SendChatMessage("Non-tank " .. self:RaidIcon(playerName, true) .. playerName .. " has " .. GetSpellLink(auraID) .. " on.", groupType == "raid" and "RAID" or "PARTY")
+		elseif (not self:IsTank(playerName)) then
+			self:Print(self:RaidIcon(playerName, false) .. self:ClassColoredName(playerName) .. " has " .. GetSpellLink(auraID) .. " on.")
+		end
+	end
+end
+
 function BadGroup:CheckAuras()
 	local numMembers
 	local groupType
 
-	if (GetNumRaidMembers() > 0) then
-		numMembers = GetNumRaidMembers()
+	numMembers = GetNumRaidMembers()
+	if (numMembers and numMembers > 0) then
 		groupType = "raid"
-	elseif (GetNumPartyMembers() > 0) then
+	else
 		numMembers = GetNumPartyMembers()
-		groupType = "party"
+		if (numMembers and numMembers > 0) then
+			groupType = "party"
+		end
 	end
 
 	if (numMembers and groupType) then
 		for i = 1, numMembers do
-			local _, playerClass = UnitClass(groupType .. i)
-			if (playerClass == "PALADIN" or playerClass == "DEATHKNIGHT" or playerClass == "WARRIOR") then	
-				for k, auraId in pairs(badAuras) do
-					local auraName = GetSpellInfo(auraId)
-					if (select(11, UnitAura(groupType .. i, auraName)) == badAuras[playerClass]) then
-						local playerName = UnitName(groupType .. i)
-						if (BadGroupSV.socialOutput and not self:IsTank(playerName)) then
-							SendChatMessage("Non-tank " .. self:RaidIcon(playerName, true) .. playerName .. " has " .. GetSpellLink(auraId) .. " on.", groupType == "raid" and "RAID" or "PARTY")
-						elseif (not self:IsTank(playerName)) then
-							self:Print(self:RaidIcon(playerName, false) .. self:ClassColoredName(playerName) .. " has " .. GetSpellLink(auraId) .. " on.")
-						end
-					end
-				end
-			end
+			self:ScanAuras(groupType .. i, groupType)
 		end
 	end
 	
-	local _, playerClass = UnitClass("player")
-	
-	if (playerClass == "DEATHKNIGHT" or playerClass == "PALADIN" or playerClass == "WARRIOR") then
-		for k, auraId in pairs(badAuras) do
-			local auraName = GetSpellInfo(auraId)
-			if (select(11, UnitAura("player", auraName)) == badAuras[playerClass]) then
-				local playerName = UnitName("player")
-				if (BadGroupSV.socialOutput and groupType and not self:IsTank(playerName)) then
-					SendChatMessage("Non-tank " .. self:RaidIcon(playerName, true) .. playerName .. " has " .. GetSpellLink(auraId) .. " on.", groupType == "raid" and "RAID" or "PARTY")
-				elseif (not self:IsTank(playerName)) then
-					self:Print(self:RaidIcon(playerName, false) .. self:ClassColoredName(playerName) .. " has " .. GetSpellLink(auraId) .. " on.")
-				end
-			end
-		end
-	end
+	self:ScanAuras("player", groupType)
 	
 	self:Print("Auras check done.")
 end
+
 -- TODO: check if tank to add already there
 function BadGroup:AddTank(tankName)
-	if (tankName == UnitName("player") or tankName == UnitName("pet") or UnitPlayerOrPetInParty(tankName) == 1 or UnitPlayerOrPetInRaid(tankName) == 1) then
+	if (tankName == UnitName("player") or tankName == UnitName("pet") or UnitPlayerOrPetInParty(tankName) or UnitPlayerOrPetInRaid(tankName)) then
 		table.insert(BadGroupSV.customTanks, tankName)
 		self:Print("Added tank " .. self:ClassColoredName(tankName))
 	else
@@ -270,12 +265,13 @@ function BadGroup:AddTank(tankName)
 	end
 end
 
--- TODO: does not remove all occurances of a tank (???)
 function BadGroup:RemoveTank(tankName)
 	for i, name in ipairs(BadGroupSV.customTanks) do
 		if (tankName == name) then
 			table.remove(BadGroupSV.customTanks, i)
 			self:Print("Removed " .. tankName .. " from the list.")
+			i = i - 1
+			if (i < 1) then break end
 		end
 	end
 end
